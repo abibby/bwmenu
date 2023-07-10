@@ -14,8 +14,7 @@ import (
 func main() {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		log.Print(err)
-		cacheDir = ""
+		log.Fatal(err)
 	}
 	cacheFile := path.Join(cacheDir, "bwmenu_names_cache")
 
