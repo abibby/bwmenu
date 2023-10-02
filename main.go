@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path"
@@ -16,12 +17,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	cacheFile := path.Join(cacheDir, "bwmenu_names_cache")
+	nameCacheFile := path.Join(cacheDir, "bwmenu_names_cache")
+	sessionCacheFile := path.Join(cacheDir, "bwmenu_session_cache")
+
+	c, err := bw.New(sessionCacheFile)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	namesChan := make(chan []string, 2)
 	itemsChan := make(chan []*bw.Item, 1)
+	password := make(chan string, 1)
+	passwordRequest := make(chan struct{}, 1)
 
-	cache, err := os.ReadFile(cacheFile)
+	cache, err := os.ReadFile(nameCacheFile)
 	if os.IsNotExist(err) {
 	} else if err != nil {
 		log.Fatal(err)
@@ -29,10 +38,24 @@ func main() {
 		namesChan <- strings.Split(string(cache), "\n")
 	}
 	go func() {
-		items, err := bw.ListItems()
+		err := c.Sync()
 		if err != nil {
 			log.Fatal(err)
 		}
+		items, err := c.ListItems()
+		if errors.Is(err, bw.ErrVaultLocked) {
+			passwordRequest <- struct{}{}
+
+			err = c.Unlock(<-password)
+			if err != nil {
+				log.Fatal(err)
+			}
+			items, err = c.ListItems()
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		itemsChan <- items
 		names := make([]string, 0, len(items))
 		for _, item := range items {
@@ -40,7 +63,7 @@ func main() {
 				names = append(names, item.Name)
 			}
 		}
-		err = os.WriteFile(cacheFile, []byte(strings.Join(names, "\n")), 0644)
+		err = os.WriteFile(nameCacheFile, []byte(strings.Join(names, "\n")), 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -53,15 +76,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	items := <-itemsChan
-	for _, item := range items {
-		if item.Name == name {
-			err = clipboard.WriteAll(item.Login.Password)
+	for {
+		select {
+		case items := <-itemsChan:
+			for _, item := range items {
+				if item.Name == name {
+					err = clipboard.WriteAll(item.Login.Password)
+					if err != nil {
+						log.Fatal(err)
+					}
+					return
+				}
+			}
+			os.Exit(1)
+		case <-passwordRequest:
+			pass, err := dmenu.Open([]string{"."}, dmenu.ReturnNonMatches())
 			if err != nil {
 				log.Fatal(err)
 			}
-			return
+			password <- pass
 		}
 	}
-	os.Exit(1)
 }
