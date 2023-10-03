@@ -57,10 +57,23 @@ func main() {
 		}
 
 		itemsChan <- items
+
+		folders, err := c.ListFolders()
+		if err != nil {
+			log.Fatal(err)
+		}
+		foldersMap := map[string]string{}
+		for _, f := range folders {
+			foldersMap[f.ID] = f.Name
+		}
 		names := make([]string, 0, len(items))
 		for _, item := range items {
 			if item.Login != nil {
-				names = append(names, item.Name)
+				name := item.Name
+				if fID, ok := item.FolderID.Ok(); ok {
+					name = foldersMap[fID] + "/" + name
+				}
+				names = append(names, name)
 			}
 		}
 		err = os.WriteFile(nameCacheFile, []byte(strings.Join(names, "\n")), 0644)

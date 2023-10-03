@@ -8,13 +8,20 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/abibby/nulls"
 )
 
-type Item struct {
+type Object struct {
 	Object string `json:"object"`
 	ID     string `json:"id"`
 	Name   string `json:"name"`
-	Login  *Login
+}
+
+type Item struct {
+	Object
+	FolderID *nulls.String `json:"folderId"`
+	Login    *Login
 }
 
 type Login struct {
@@ -49,6 +56,7 @@ func (c *Client) bw(v any, args ...string) error {
 		}
 		return NewBWError(err, "bw "+strings.Join(args, " "))
 	}
+	fmt.Printf("%s\n", b)
 	if v == nil {
 		return nil
 	}
@@ -64,6 +72,16 @@ func (c *Client) ListItems() ([]*Item, error) {
 	items := []*Item{}
 	err := c.bw(&items, "list", "items")
 	return items, err
+}
+
+type Folder struct {
+	Object
+}
+
+func (c *Client) ListFolders() ([]*Folder, error) {
+	folders := []*Folder{}
+	err := c.bw(&folders, "list", "folders")
+	return folders, err
 }
 
 func (c *Client) Unlock(password string) error {
