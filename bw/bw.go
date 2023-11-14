@@ -56,7 +56,7 @@ func (c *Client) bw(v any, args ...string) error {
 		}
 		return NewBWError(err, "bw "+strings.Join(args, " "))
 	}
-	fmt.Printf("%s\n", b)
+	// fmt.Printf("%s\n", b)
 	if v == nil {
 		return nil
 	}
